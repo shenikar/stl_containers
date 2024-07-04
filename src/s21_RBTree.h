@@ -1,76 +1,104 @@
 #ifndef S21_RBTREE_H_
 #define S21_RBTREE_H_
 
-#include <iostream>
+#include <functional>
 
-template <typename Key, typename T>
+template <class T, class Compare = std::less<T>>
 class RBTree
 {
-public:
+private:
   struct Node;
+  Node *root_;
+  size_t size_;
+
+  bool insert(Node *new_node) noexcept;
 
 public:
+  using Key = T;
+  using size_type = size_t;
+
   class Iterator;
   class ConstIterator;
 
-  using key_type = Key;
-  using value_type = T;
-  using reference = value_type &;
-  using const_reference = const value_type &;
-  using size_type = size_t;
-  using iterator = Iterator;
-  using const_iterator = ConstIterator;
+  RBTree() noexcept;
+  explicit RBTree(std::initializer_list<Key> const &items);
+  RBTree(const RBTree &other);
+  RBTree(RBTree &&other) noexcept;
+  ~RBTree();
 
+  std::pair<Iterator, bool> insert(const Key &value);
+  std::pair<Iterator, bool> insert_or_assign(const Key &key);
+  Iterator begin() noexcept;
+  Iterator end() noexcept;
+  ConstIterator begin() const noexcept;
+  ConstIterator end() const noexcept;
+  void merge(RBTree<Key, Compare> &other);
+  void swap(RBTree &other) noexcept;
+  void erase(Iterator pos) noexcept;
+  Key &at(const Key &key) &;
+  const Key &at(const Key &key) const &;
+  Iterator find(const Key &key) noexcept;
+  ConstIterator find(const Key &key) const noexcept;
+  bool contains(const Key &key) const noexcept;
+  void clear() noexcept;
+  Key &operator[](const Key &key) & noexcept;
+  RBTree &operator=(const RBTree &other) &;
+  RBTree &operator=(RBTree &&other) & noexcept;
+  bool empty() const noexcept;
+  size_type size() const noexcept;
+  size_type max_size() const;
+  Iterator insert_replay(const Key &key);
+  std::pair<Iterator, Iterator> equal_range(const Key &key) noexcept;
+  std::pair<ConstIterator, ConstIterator> equal_range(const Key &key) const noexcept;
+  Iterator lower_bound(const Key &key) noexcept;
+  ConstIterator lower_bound(const Key &key) const noexcept;
+  Iterator upper_bound(const Key &key) noexcept;
+  ConstIterator upper_bound(const Key &key) const noexcept;
+  size_type count(const Key &key) const noexcept;
+
+private:
+  struct Node
+  {
+    Key key_;
+    Node *left_;
+    Node *right_;
+    Node *parent_;
+
+    explicit Node(Key key, Node *left = nullptr, Node *right = nullptr, Node *parent = nullptr) : key_(std::move(key)), left_(left), right_(right), parent_(parent) {}
+  };
+
+public:
   class Iterator
   {
-    friend class RBTree<Key, T>;
+  private:
+    Node *node_;
 
   public:
-    Iterator();
-    Iterator(Node *node, Node *past_node = nullptr);
-    iterator &operator++();
-    iterator operator++(int);
-    iterator &operator--();
-    iterator operator--(int);
-    bool operator==(const iterator &other) const;
-    bool operator!=(const iterator &other) const;
-    reference operator*();
-    Node &operator=(Node &other) noexcept;
-    friend class RBTree<Key, T>;
-
-  protected:
-    Node *iter_node_;
-    Node *iter_past_node_;
-    Node *move_forward(Node *node);
-    Node *move_backward(Node *node);
+    friend class RBTree;
+    explicit Iterator(Node *node);
+    Iterator &operator++() & noexcept;
+    Iterator &operator--() & noexcept;
+    bool operator==(const Iterator &other) const noexcept;
+    bool operator!=(const Iterator &other) const noexcept;
+    Key &operator*() const &;
   };
-  class ConstIterator : public Iterator
+
+  class ConstIterator
   {
-  public:
-    ConstIterator() : Iterator(){};
-    const_reference operator*() const
-    {
-      return Iterator::operator*();
-    };
-  };
+  private:
+    Node *node_;
 
-  RBTree();
-  RBTree(const RBTree &other);
-  RBTree(RBTree &&other);
-  RBTree &operator=(const RBTree &other);
-  RBTree &operator=(RBTree &&other);
-  ~RBTree();
-  void insert(key_type &&key, value_type &&value);
-  void erase(key_type &&key);
-  void clear();
-  iterator begin();
-  iterator end();
-  const_iterator begin() const;
-  const_iterator end() const;
-  bool empty() const;
-  size_type size() const;
-  size_type max_size() const;
-  void swap(RBTree &other);
+  public:
+    friend class RBTree;
+    explicit ConstIterator(Node *node);
+    ConstIterator &operator++() & noexcept;
+    ConstIterator &operator--() & noexcept;
+    bool operator==(const ConstIterator &other) const noexcept;
+    bool operator!=(const ConstIterator &other) const noexcept;
+    const Key &operator*() const &;
+  };
 };
+
+#include "s21_RBTree.h"
 
 #endif // S21_RBTREE_H_
