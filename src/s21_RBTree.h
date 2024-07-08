@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <stdexcept>
+#include <memory>
 template <class T, class Compare = std::less<T>>
 class RBTree
 {
@@ -164,7 +165,7 @@ public:
         }
         else
         {
-          pos.node_->parent_->right_ = pos.node_->right_
+          pos.node_->parent_->right_ = pos.node_->right_;
         }
       }
       delete pos.node_;
@@ -305,20 +306,180 @@ public:
     root_ = nullptr;
   }
 
-  Key &operator[](const Key &key) & noexcept;
-  RBTree &operator=(const RBTree &other) &;
-  RBTree &operator=(RBTree &&other) & noexcept;
-  bool empty() const noexcept;
-  size_type size() const noexcept;
-  size_type max_size() const;
-  Iterator insert_replay(const Key &key);
-  std::pair<Iterator, Iterator> equal_range(const Key &key) noexcept;
-  std::pair<ConstIterator, ConstIterator> equal_range(const Key &key) const noexcept;
-  Iterator lower_bound(const Key &key) noexcept;
-  ConstIterator lower_bound(const Key &key) const noexcept;
-  Iterator upper_bound(const Key &key) noexcept;
-  ConstIterator upper_bound(const Key &key) const noexcept;
-  size_type count(const Key &key) const noexcept;
+  Key &operator[](const Key &key) & noexcept
+  {
+    auto it = Find(key);
+    if (it != End())
+    {
+      return *it;
+    }
+    auto new_node = new Node(key);
+    Insert(new_node);
+    return new_node->key_;
+  }
+
+  RBTree &operator=(const RBTree &other) &
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    Clear();
+    for (const auto &item : other)
+    {
+      InsertReplay(item);
+    }
+    size_ = other.size_;
+    return *this;
+  }
+
+  RBTree &operator=(RBTree &&other) & noexcept
+  {
+    if (this == &other)
+    {
+      return *this;
+    }
+    Clear();
+    root_ = other.root_;
+    other.root_ = nullptr;
+    size_ = other.size_;
+    other.size_ = 0;
+    return *this;
+  }
+
+  bool Empty() const noexcept
+  {
+    return root_ == nullptr;
+  }
+
+  size_type Size() const
+  {
+    return size_;
+  }
+
+  size_type MaxSize() const
+  {
+    return std::allocator<Node>().max_size();
+  }
+
+  Iterator InsertReplay(const Key &key)
+  {
+    auto new_node = new Node(key);
+    auto cmp = Compare{};
+    if (root_ == nullptr)
+    {
+      root_ = new_node;
+      size_++;
+      return Iterator{new_node};
+    }
+    Node *current = root_;
+    Node *parent = root_;
+    while (current != nullptr)
+    {
+      parent = current;
+      if (cmp(new_node->key_, current->key_))
+      {
+        current = current->left_;
+      }
+      else
+      {
+        current = current->right_;
+      }
+    }
+    if (cmp(new_node->key_, parent->key_))
+    {
+      parent->left_ = new_node;
+    }
+    else
+    {
+      parent->right_ = new_node;
+    }
+    new_node->parent_ = parent;
+    size_++;
+    return Iterator{new_node};
+  }
+
+  std::pair<Iterator, Iterator> EqualRange(const Key &key) noexcept
+  {
+    auto last = Find(key);
+    auto first = last;
+    while (last != End())
+    {
+      if (Compare{}(*last, key) || Compare{}(key, *last))
+      {
+        break;
+      }
+      last++;
+    }
+    return std::make_pair(first, last);
+  }
+
+  std::pair<ConstIterator, ConstIterator> EqualRange(const Key &key) const noexcept
+  {
+    auto last = Find(key);
+    auto first = last;
+    while (last != End())
+    {
+      if (Compare{}(*last, key) || Compare{}(key, *last))
+      {
+        break;
+      }
+      last++;
+    }
+    return std::make_pair(first, last);
+  }
+
+  Iterator LowerBound(const Key &key) noexcept
+  {
+    auto current = root_;
+    while (current != nullptr && Compare{}(current->key_, key))
+    {
+      current = current->right_;
+    }
+    return Iterator{current};
+  }
+
+  ConstIterator LowerBound(const Key &key) const noexcept
+  {
+    auto current = root_;
+    while (current != nullptr && Compare{}(current->key_, key))
+    {
+      current = current->right_;
+    }
+    return ConstIterator{current};
+  }
+
+  Iterator UpperBound(const Key &key) noexcept
+  {
+    auto current = root_;
+    while (current != nullptr && !Compare{}(key, current->key_))
+    {
+      current = current->right_;
+    }
+    return Iterator{current};
+  }
+
+  ConstIterator UpperBound(const Key &key) const noexcept
+  {
+    auto current = root_;
+    while (current != nullptr && !Compare{}(key, current->key_))
+    {
+      current = current->right_;
+    }
+    return ConstIterator{current};
+  }
+
+  size_type Count(const Key &key) const noexcept
+  {
+    auto it = Find(key);
+    size_type result = 0;
+    while (it != End() && !(Compare{}(*it, key) || Compare{}(key, *it)))
+    {
+      result++;
+      it++;
+    }
+    return result;
+  }
 
 private:
   struct Node
@@ -330,6 +491,38 @@ private:
 
     explicit Node(Key key, Node *left = nullptr, Node *right = nullptr, Node *parent = nullptr) : key_(std::move(key)), left_(left), right_(right), parent_(parent) {}
   };
+
+  bool Insert(Node *new_node) noexcept
+  {
+    auto cmp = Compare{};
+    if (root_ == nullptr)
+    {
+      root_ = new_node;
+      size_++;
+      return true;
+    }
+    Node *current = root_;
+    Node *parent = root_;
+    while (current != nullptr)
+    {
+      parent = current;
+      if ((!cmp(new_node->key_, current->key_) || cmp(current->key_, new_node->key_)))
+      {
+        return false;
+      }
+      if (cmp(new_node->key_, parent->key_))
+      {
+        parent->left_ = new_node;
+      }
+      else
+      {
+        parent->right_ = new_node;
+      }
+      new_node->parent_ = parent;
+      size_++;
+      return true;
+    }
+  }
 
 public:
   class Iterator
